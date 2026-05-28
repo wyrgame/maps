@@ -13,6 +13,11 @@ let gameState = {
   defenderId: null
 };
 
+// History State Management Stacks
+let historyStack = [];
+let redoStack = [];
+const MAX_HISTORY = 30; // Prevents browser memory leakage during long sims
+
 // Permanent Database of Team Assets (Never changes mid-game)
 const countryFlags = {
   IE: "Flags/flag-of-Ireland.png",
@@ -269,12 +274,22 @@ function setupDomEventListeners() {
       updateLog("Paintbrush cleared manually via sidebar.");
     });
   }
+
+  // History Operation Click Registry Assignments
+  const undoBtn = document.getElementById("btn-undo");
+  if (undoBtn) undoBtn.addEventListener("click", executeUndo);
+
+  const redoBtn = document.getElementById("btn-redo");
+  if (redoBtn) redoBtn.addEventListener("click", executeRedo);
 }
 
 // --- REWRITTEN PAINT CORE: SEPARATING LAND SHAPE FROM MARKER TRACKING ---
 function paintCountry(targetRegionId, color, hoverColor, flagUrl, attackerEmpireId) {
   const targetState = simplemaps_europemap_mapdata.state_specific[targetRegionId];
   if (!targetState) return;
+
+  // SAVE TIMELINE SNAPSHOT BEFORE PAINT TRANSITIONS ALTER DATA
+  saveHistorySnapshot();
 
   // 1. Update the target land mass coordinates properties to match the conqueror
   targetState.color = color;
@@ -283,7 +298,7 @@ function paintCountry(targetRegionId, color, hoverColor, flagUrl, attackerEmpire
 
   const attackerName = simplemaps_europemap_mapdata.state_specific[attackerEmpireId]?.name || attackerEmpireId;
 
-  // 2. CRITICAL FIX: Find the specific marker index sitting inside the TARGET LAND REGION
+  // 2. Find the specific marker index sitting inside the TARGET LAND REGION
   // and update its visual asset link to display the conqueror's logo symbol.
   const targetMarkerId = countryMarkers[targetRegionId];
   if (targetMarkerId && simplemaps_europemap_mapdata.locations[targetMarkerId]) {
@@ -299,6 +314,137 @@ function paintCountry(targetRegionId, color, hoverColor, flagUrl, attackerEmpire
   updateLog(`🎨 ${attackerName} has successfully conquered ${targetState.name || targetRegionId}!`);
 }
 
+// --- UPDATED SAFETY TIMELINE HISTORY SNAPSHOT PIPELINE ---
+function saveHistorySnapshot() {
+  if (typeof simplemaps_europemap_mapdata === "undefined") return;
+  const states = simplemaps_europemap_mapdata.state_specific;
+  const locations = simplemaps_europemap_mapdata.locations;
+  
+  // Safe Map Default Fallbacks (Adjust these hex codes to your map's base theme if needed)
+  const defaultMapColor = simplemaps_europemap_mapdata.main_settings.state_color || "#7f7f7f";
+  const defaultHoverColor = simplemaps_europemap_mapdata.main_settings.state_hover_color || "#999999";
+
+  let snapshot = { states: {}, locations: {} };
+
+  // Deep clone current land ownership matrix with strict safety fallbacks
+  for (let id in states) {
+    snapshot.states[id] = {
+      color: states[id].color || defaultMapColor,
+      hover_color: states[id].hover_color || defaultHoverColor,
+      owner: states[id].owner || id
+    };
+  }
+
+  // Deep clone marker flags configuration rules safely
+  for (let id in countryMarkers) {
+    const mId = countryMarkers[id];
+    if (locations[mId]) {
+      snapshot.locations[mId] = {
+        image_url: locations[mId].image_url || "",
+        name: locations[mId].name || "",
+        description: locations[mId].description || ""
+      };
+    }
+  }
+
+  historyStack.push(snapshot);
+  if (historyStack.length > MAX_HISTORY) historyStack.shift();
+  
+  redoStack = []; 
+  updateHistoryButtonsUI();
+}
+
+function executeUndo() {
+  if (historyStack.length === 0) return;
+
+  // 1. Capture current layout frame state and push it into the redo stack
+  const currentStateSnapshot = currentHistorySnapshotObject();
+  redoStack.push(currentStateSnapshot);
+
+  // 2. Pop the prior timeline map state record out of the history stack
+  const previousState = historyStack.pop();
+  applyHistorySnapshot(previousState);
+  
+  updateHistoryButtonsUI();
+  updateLog("↩️ Undo executed: Restored previous map timeline.");
+}
+
+function executeRedo() {
+  if (redoStack.length === 0) return;
+
+  // 1. Save where we are right now back into standard history stack
+  const currentStateSnapshot = currentHistorySnapshotObject();
+  historyStack.push(currentStateSnapshot);
+
+  // 2. Restore the forward timeline frame index out of the redo stack
+  const nextState = redoStack.pop();
+  applyHistorySnapshot(nextState);
+
+  updateHistoryButtonsUI();
+  updateLog("↪️ Redo executed: Forwarded map state timeline.");
+}
+
+function currentHistorySnapshotObject() {
+  const states = simplemaps_europemap_mapdata.state_specific;
+  const locations = simplemaps_europemap_mapdata.locations;
+  const defaultMapColor = simplemaps_europemap_mapdata.main_settings.state_color || "#7f7f7f";
+  const defaultHoverColor = simplemaps_europemap_mapdata.main_settings.state_hover_color || "#999999";
+
+  let snapshot = { states: {}, locations: {} };
+  
+  for (let id in states) {
+    snapshot.states[id] = { 
+      color: states[id].color || defaultMapColor, 
+      hover_color: states[id].hover_color || defaultHoverColor, 
+      owner: states[id].owner || id 
+    };
+  }
+  for (let id in countryMarkers) {
+    const mId = countryMarkers[id];
+    if (locations[mId]) {
+      snapshot.locations[mId] = { 
+        image_url: locations[mId].image_url || "", 
+        name: locations[mId].name || "", 
+        description: locations[mId].description || "" 
+      };
+    }
+  }
+  return snapshot;
+}
+
+function applyHistorySnapshot(snapshot) {
+  if (!snapshot) return;
+  const states = simplemaps_europemap_mapdata.state_specific;
+  const locations = simplemaps_europemap_mapdata.locations;
+
+  for (let id in snapshot.states) {
+    if (states[id]) {
+      states[id].color = snapshot.states[id].color;
+      states[id].hover_color = snapshot.states[id].hover_color;
+      states[id].owner = snapshot.states[id].owner;
+    }
+  }
+
+  for (let mId in snapshot.locations) {
+    if (locations[mId]) {
+      locations[mId].image_url = snapshot.locations[mId].image_url;
+      locations[mId].name = snapshot.locations[mId].name;
+      locations[mId].description = snapshot.locations[mId].description;
+    }
+  }
+
+  simplemaps_europemap.refresh();
+  fixFlagSizesNative();
+}
+
+function updateHistoryButtonsUI() {
+  const undoBtn = document.getElementById("btn-undo");
+  const redoBtn = document.getElementById("btn-redo");
+  if (undoBtn) undoBtn.disabled = (historyStack.length === 0);
+  if (redoBtn) redoBtn.disabled = (redoStack.length === 0);
+}
+
+// --- AUXILIARY ACTIONS & UTILITIES ---
 function countTerritoriesOwnedBy(ownerId) {
   let count = 0;
   const states = simplemaps_europemap_mapdata.state_specific;

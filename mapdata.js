@@ -142,7 +142,8 @@ var simplemaps_europemap_mapdata={
     },
     IE: {
       name: "Ireland",
-      color: "green"
+      color: "green",
+      hover_color: "#028802"
     },
     IS: {
       name: "Iceland"
