@@ -1,0 +1,226 @@
+:root {
+    --bg-dark: #1e293b;
+    --bg-panel: #0f172a;
+    --border-color: #334155;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent-blue: #3b82f6;
+    --accent-red: #ef4444;
+    --accent-green: #22c55e;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f1f5f9;
+    color: var(--bg-panel);
+    overflow: hidden;
+    height: 100vh;
+}
+
+/* Master Layout Framework */
+.app-container {
+    display: flex;
+    width: 100vw;
+    height: 100vh;
+}
+
+/* Sidebar Styling */
+.sidebar {
+    width: 28%;
+    max-width: 400px;
+    min-width: 300px;
+    background-color: var(--bg-panel);
+    border-right: 1px solid var(--border-color);
+    color: var(--text-main);
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+    gap: 24px;
+    z-index: 10;
+    box-shadow: 4px 0 15px rgba(0,0,0,0.2);
+}
+
+.panel-header h2 {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+    background: linear-gradient(to right, #fff, #94a3b8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.panel-header p {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+/* Form & Layout Element Control Blocks */
+.control-group {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+}
+
+.control-group h3 {
+    font-size: 1rem;
+    margin-bottom: 12px;
+    color: var(--text-main);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 6px;
+}
+
+/* Selection Mode Sliders */
+.radio-toggle {
+    display: flex;
+    background: var(--bg-dark);
+    padding: 4px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
+.radio-toggle input[type="radio"] {
+    display: none;
+}
+
+.radio-toggle label {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    color: var(--text-muted);
+}
+
+.radio-toggle input[type="radio"]:checked + label {
+    background-color: var(--accent-blue);
+    color: white;
+    font-weight: 600;
+}
+
+/* Battle Card Systems */
+.team-select-box {
+    background: var(--bg-dark);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px;
+    position: relative;
+    margin-bottom: 8px;
+}
+
+.badge {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    position: absolute;
+    top: -8px;
+    left: 12px;
+}
+
+.badge.attacker { background: var(--accent-blue); color: white; }
+.badge.defender { background: var(--accent-red); color: white; }
+
+.team-display {
+    font-size: 0.9rem;
+    color: var(--text-main);
+    font-weight: 500;
+}
+
+.vs-divider {
+    text-align: center;
+    font-weight: 800;
+    font-size: 0.8rem;
+    color: var(--border-color);
+    margin: 8px 0;
+}
+
+/* Interactive Controls */
+.btn-primary {
+    width: 100%;
+    background-color: var(--accent-blue);
+    color: white;
+    border: none;
+    padding: 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    margin-top: 8px;
+}
+
+.btn-primary:hover:not(:disabled) { background-color: #2563eb; }
+.btn-primary:disabled {
+    background-color: var(--border-color);
+    color: var(--text-muted);
+    cursor: not-allowed;
+}
+
+.result-card {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 6px;
+    text-align: center;
+    font-size: 0.9rem;
+    font-weight: 600;
+    animation: popIn 0.3s ease;
+}
+.result-card.win { background-color: rgba(34, 197, 94, 0.2); border: 1px solid var(--accent-green); color: #4ade80; }
+
+/* Main Content Area */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: #f8fafc;
+}
+
+.map-viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Fix SimpleMaps containment and push default zoom buttons clear of corners */
+#map {
+    width: 100%;
+    height: 100%;
+}
+.map_wrapper {
+    max-height: 100% !important;
+}
+/* Re-aligning native zoom sliders out from layout edges */
+.sm_zoom_container {
+    top: 20px !important;
+    left: 20px !important;
+}
+
+/* Footer Status Strip */
+.status-bar {
+    height: 40px;
+    background-color: #ffffff;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.hidden { display: none !important; }
+
+@keyframes popIn {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
