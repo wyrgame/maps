@@ -212,6 +212,7 @@ var simplemaps_europemap_mapdata={
       color: "green",
       description: "Spain",
       size: "40",
+      scale: false,
       image_url: "Flags/flag-of-Spain.png"
     },
     "1": {
@@ -221,6 +222,7 @@ var simplemaps_europemap_mapdata={
       color: "green",
       description: "France",
       size: "20",
+      scale: false,
       image_url: "Flags/flag-of-France.png"
     }
   },

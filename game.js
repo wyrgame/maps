@@ -668,11 +668,27 @@ function clearBattleQueue() {
 }
 
 function fixFlagSizesNative() {
-  const currentZoom = simplemaps_europemap.zoom_level || 1;
+  // 1. Get the real visual scale of the map canvas box
+  const mapSvg = document.querySelector("#map_inner_vml") || document.querySelector("#map svg g");
+  if (!mapSvg) return;
+
+  // SimpleMaps stores the current true scaling divisor inside its internal mapinfo tracking
+  const currentScale = simplemaps_europemap.mapinfo?.scale || 1;
+
+  // 2. Target all location marker images
   document.querySelectorAll("#map image, .sm_location_image").forEach(img => {
+    // Save original pristine size if not captured yet
     if (!img.dataset.baseSize) img.dataset.baseSize = img.getAttribute("width") || "30";
-    img.setAttribute("width", parseFloat(img.dataset.baseSize) * currentZoom);
-    img.setAttribute("height", parseFloat(img.dataset.baseSize) * currentZoom);
+    const baseSize = parseFloat(img.dataset.baseSize);
+
+    // 3. Reset the width/height attributes back to original baseline
+    img.setAttribute("width", baseSize);
+    img.setAttribute("height", baseSize);
+
+    // 4. THE CRITICAL FIX: Inject an inverse CSS transform directly on the center origin of the image element.
+    // This perfectly neutralizes the parent SVG matrix scaling regardless of how far you zoom.
+    img.style.transformOrigin = "center";
+    img.style.transform = `scale(${1 / currentScale})`;
   });
 }
 
