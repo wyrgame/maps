@@ -92,7 +92,15 @@ function initGame() {
       if (gameState.currentMode === 'sandbox') {
         handleManualSandbox(id);
       } else {
-        handleBattleSelection(id);
+        // Smart Context Check: Check where user focus currently sits
+        const activeEl = document.activeElement;
+        let forcedTarget = null;
+        if (activeEl && activeEl.id === "defender-search") {
+          forcedTarget = "defender";
+        } else if (activeEl && activeEl.id === "attacker-search") {
+          forcedTarget = "attacker";
+        }
+        handleBattleSelection(id, forcedTarget);
       }
     }
 
@@ -139,36 +147,61 @@ function initGame() {
       }
 
       // CASE 3: Standard Left Click with an Active Brush -> CONQUER TARGET!
-      // Active Attacking Empire (gameState.selectedCountry) captures Target Region (id)
-      paintCountry(id, gameState.currentBrushColor, gameState.currentBrushHoverColor, gameState.currentBrushFlag, gameState.selectedCountry);
+      // Rule 3/4 Applied to Sandbox Paintbrush as well: Cascade conversions globally
+      paintEmpire(currentOwnerId, gameState.currentBrushColor, gameState.currentBrushHoverColor, gameState.currentBrushFlag, gameState.selectedCountry);
     }
 
-    // --- MODE 2: STRUCTURAL WAR SELECTION ---
-    function handleBattleSelection(id) {
+    // --- MODE 2: STRUCTURAL WAR SELECTION (AUTO-SYNC SEARCH FIELDS) ---
+    function handleBattleSelection(id, forcedTarget = null) {
       const state = simplemaps_europemap_mapdata.state_specific[id];
       if (!state) return;
 
-      const currentOwnerId = state.owner || id; // Target the actual imperial ruler of the land mass
+      const currentOwnerId = state.owner || id; // Target true imperial master ruler
       const btn = document.getElementById("btn-simulate");
       const ownerHomeState = simplemaps_europemap_mapdata.state_specific[currentOwnerId] || state;
 
-      if (!gameState.attackerId) {
+      const attInput = document.getElementById("attacker-search");
+      const defInput = document.getElementById("defender-search");
+
+      // Check if we should fill the attacker or defender field
+      const shouldAssignAsDefender = forcedTarget === "defender" || (forcedTarget !== "attacker" && gameState.attackerId && gameState.attackerId !== currentOwnerId);
+
+      // Dynamic naming logic: Check total land count to decide if they are an Empire yet
+      const territoryCount = countTerritoriesOwnedBy(currentOwnerId);
+      const suffix = territoryCount > 1 ? " Empire" : "";
+      const formattedName = `${ownerHomeState.name || currentOwnerId}${suffix}`;
+
+      if (!shouldAssignAsDefender) {
+        // ASSIGN ATTACKER
         gameState.attackerId = currentOwnerId;
-        document.getElementById("attacker-display").innerText = `⚔️ ${ownerHomeState.name || currentOwnerId}`;
-        updateLog(`Attacker selected: ${ownerHomeState.name || currentOwnerId}. Now select target region.`);
-      } 
-      else if (gameState.attackerId === currentOwnerId) {
-        gameState.attackerId = null;
-        document.getElementById("attacker-display").innerText = "Select on map...";
-        if (btn) btn.disabled = true;
+        if (attInput) {
+          attInput.value = formattedName;
+          attInput.blur(); // Stripping cursor focus prevents map clicks from overwriting selection
+        }
+        updateLog(`Attacker selected: ${formattedName}.`);
       } 
       else {
-        gameState.defenderId = id; // Keep targetRegionId here to identify exactly what area changes hands
-        document.getElementById("defender-display").innerText = `🛡️ ${state.name || id} (${ownerHomeState.name || currentOwnerId})`;
-        if (btn) btn.disabled = false; 
-        updateLog(`Target territory confirmed: ${state.name || id}. Ready to simulate battle.`);
+        // ASSIGN DEFENDER
+        gameState.defenderId = id; 
+        
+        if (defInput) {
+          defInput.value = formattedName;
+          defInput.blur(); // Stripping cursor focus prevents map clicks from overwriting selection
+        }
+        updateLog(`Target territory confirmed: ${state.name || id} (Part of ${formattedName}).`);
+      }
+
+      // Dynamic Validation Pass: Instantly evaluate activation rules regardless of choice order!
+      if (btn) {
+        btn.disabled = !(gameState.attackerId && gameState.defenderId);
+        if (!btn.disabled) {
+          updateLog("Ready to simulate battle.");
+        }
       }
     }
+
+    // Make this function accessible to the global typing search handler scope
+    window.triggerMapBattleSelection = handleBattleSelection;
 
   }, 1500);
 }
@@ -181,12 +214,19 @@ function runBattleSimulation() {
   const defState = simplemaps_europemap_mapdata.state_specific[defRegionId];
   if (!defState) return;
 
-  const defId = defState.owner || defRegionId; // True defending Empire owning that land
+  const defId = defState.owner || defRegionId; // True defending Empire master owning that land
   
   const attackerName = simplemaps_europemap_mapdata.state_specific[attId]?.name || attId;
   const defenderName = simplemaps_europemap_mapdata.state_specific[defId]?.name || defId;
   
-  updateLog(`Simulating engagement: ${attackerName} vs ${defenderName}...`);
+  // Rule 1 FIXED: Civil War Prevention Guard Clause
+  if (attId === defId) {
+    updateLog(`⚠️ Invalid Action: ${attackerName} cannot launch a military strike against its own Empire borders!`);
+    clearBattleQueue();
+    return;
+  }
+
+  updateLog(`Simulating engagement: ${attackerName} Empire vs ${defenderName} Empire...`);
   
   // Calculate Territory Modifier Count to favor larger empires
   let attCount = countTerritoriesOwnedBy(attId);
@@ -211,21 +251,28 @@ function runBattleSimulation() {
       const rand = Math.random();
       const attackerWon = rand < attackerWinChance;
       
+      // Flush defender slot, keep attacker loaded for succession attacks
+      gameState.defenderId = null;
+      const defInput = document.getElementById("defender-search");
+      if (defInput) defInput.value = "";
+
       if (btn) {
-        btn.innerText = "⚡ Commencing Battle";
-        btn.disabled = true;
+        btn.innerText = "⚡ Click to Battle";
+        btn.disabled = (gameState.attackerId && gameState.defenderId) ? false : true;
       }
       if (resultCard) resultCard.classList.remove("hidden");
       
       if (attackerWon) {
         if (resultCard) {
           resultCard.className = "result-card win";
-          resultCard.innerHTML = `<strong>VICTORY: ${attackerName} Wins!</strong><br>${defState.name || defRegionId} annexed into the empire.`;
+          resultCard.innerHTML = `<strong>VICTORY: ${attackerName} Wins!</strong><br>The entire ${defenderName} Empire has capitulated and collapsed!`;
         }
         
         // Execute structural map transfer using the Attacking Empire's original base color properties
         const attState = simplemaps_europemap_mapdata.state_specific[attId];
-        paintCountry(defRegionId, attState.color, (attState.hover_color || attState.color), countryFlags[attId], attId);
+        
+        // Rule 3 & 4 FIXED: Convert all regions belonging to the defId empire to the attacker's empire details
+        paintEmpire(defId, attState.color, (attState.hover_color || attState.color), countryFlags[attId], attId);
       } else {
         if (resultCard) {
           resultCard.className = "result-card";
@@ -237,18 +284,16 @@ function runBattleSimulation() {
       }
       
       updateLog(`Battle complete. Outcome resolved.`);
-      // Flush matching defender slots, keep attacker loaded for rapid continuation configurations
-      gameState.defenderId = null;
-      document.getElementById("defender-display").innerText = "Select target on map...";
     }
   }, 375);
 }
 
 // Dom Event Initialization
 function setupDomEventListeners() {
-  document.querySelectorAll('input[name="game-mode"]').forEach(radio => {
-    radio.addEventListener('change', (e) => {
+  document.querySelectorAll('input[name="game-mode"]').forEach(radioInput => {
+    radioInput.addEventListener('change', (e) => {
       gameState.currentMode = e.target.value;
+
       if (gameState.currentMode === 'sandbox') {
         document.getElementById("sandbox-interface").classList.remove("hidden");
         document.getElementById("battle-interface").classList.add("hidden");
@@ -258,7 +303,7 @@ function setupDomEventListeners() {
         document.getElementById("battle-interface").classList.remove("hidden");
         resetSandboxBrush();
       }
-      updateLog(`Switched control operational framework to: ${gameState.currentMode}`);
+      updateLog(`Switched control framework to: ${gameState.currentMode === 'sandbox' ? 'Manual Sandbox' : 'Battle Sim'}`);
     });
   });
 
@@ -281,46 +326,134 @@ function setupDomEventListeners() {
 
   const redoBtn = document.getElementById("btn-redo");
   if (redoBtn) redoBtn.addEventListener("click", executeRedo);
+
+  // --- TEXT INTERACTION SEARCH ENGINE DROP-DOWNS LISTENER ---
+  const setupSearchDropdowns = () => {
+    const attInput = document.getElementById("attacker-search");
+    const attDropdown = document.getElementById("attacker-dropdown");
+    const defInput = document.getElementById("defender-search");
+    const defDropdown = document.getElementById("defender-dropdown");
+
+    const filterTeams = (inputEl, dropdownEl, mode) => {
+      if (!inputEl || !dropdownEl) return;
+      
+      inputEl.addEventListener("input", (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        dropdownEl.innerHTML = "";
+        
+        if (!query) {
+          dropdownEl.classList.add("hidden");
+          return;
+        }
+
+        const states = simplemaps_europemap_mapdata.state_specific;
+        let matches = [];
+
+        for (let id in states) {
+          const name = (states[id].name || id).toLowerCase();
+          // Uses .startsWith() to reject middle matching letters
+          if (name.startsWith(query)) {
+            matches.push({ id: id, name: states[id].name || id });
+          }
+        }
+
+        if (matches.length === 0) {
+          dropdownEl.classList.add("hidden");
+          return;
+        }
+
+        dropdownEl.classList.remove("hidden");
+        matches.forEach(match => {
+          const item = document.createElement("div");
+          item.className = "dropdown-item";
+          item.innerText = match.name;
+          item.addEventListener("click", () => {
+            if (typeof window.triggerMapBattleSelection === "function") {
+              if (mode === "attacker") {
+                gameState.attackerId = null;
+                window.triggerMapBattleSelection(match.id, "attacker");
+              } else {
+                window.triggerMapBattleSelection(match.id, "defender");
+              }
+            }
+            dropdownEl.classList.add("hidden");
+          });
+          dropdownEl.appendChild(item);
+        });
+      });
+
+      // Handle Keydown "Enter" inside inputs
+      inputEl.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const firstMatchItem = dropdownEl.querySelector(".dropdown-item");
+          if (firstMatchItem) {
+            firstMatchItem.click();
+          }
+        }
+      });
+
+      // Close autocomplete floating list boxes if clicking out onto canvas
+      document.addEventListener("click", (evt) => {
+        if (!inputEl.contains(evt.target) && !dropdownEl.contains(evt.target)) {
+          dropdownEl.classList.add("hidden");
+        }
+      });
+    };
+
+    filterTeams(attInput, attDropdown, "attacker");
+    filterTeams(defInput, defDropdown, "defender");
+  };
+
+  setupSearchDropdowns();
 }
 
-// --- REWRITTEN PAINT CORE: SEPARATING LAND SHAPE FROM MARKER TRACKING ---
-function paintCountry(targetRegionId, color, hoverColor, flagUrl, attackerEmpireId) {
-  const targetState = simplemaps_europemap_mapdata.state_specific[targetRegionId];
-  if (!targetState) return;
+// --- GLOBAL EMPIRE PAINT LAYER: HANDLES RULE 3 & 4 CASCADING CONQUESTS ---
+function paintEmpire(targetEmpireMasterId, color, hoverColor, flagUrl, attackerEmpireId) {
+  if (typeof simplemaps_europemap_mapdata === "undefined") return;
+  const states = simplemaps_europemap_mapdata.state_specific;
 
-  // SAVE TIMELINE SNAPSHOT BEFORE PAINT TRANSITIONS ALTER DATA
+  // SAVE TIMELINE SNAPSHOT BEFORE EXECUTION TRANSITIONS ALTER DATA
   saveHistorySnapshot();
 
-  // 1. Update the target land mass coordinates properties to match the conqueror
-  targetState.color = color;
-  targetState.hover_color = hoverColor;
-  targetState.owner = attackerEmpireId; // Change the owner pointer directly to the attacker Empire ID
+  const attackerName = states[attackerEmpireId]?.name || attackerEmpireId;
+  let regionsConqueredCount = 0;
 
-  const attackerName = simplemaps_europemap_mapdata.state_specific[attackerEmpireId]?.name || attackerEmpireId;
+  // Loop through all regions on the map. If a territory is owned by the target empire, shift it to the attacker.
+  for (let id in states) {
+    const currentOwnerOfRegion = states[id].owner || id;
+    
+    if (currentOwnerOfRegion === targetEmpireMasterId) {
+      regionsConqueredCount++;
+      
+      // 1. Shift land tracking parameters
+      states[id].color = color;
+      states[id].hover_color = hoverColor;
+      states[id].owner = attackerEmpireId;
 
-  // 2. Find the specific marker index sitting inside the TARGET LAND REGION
-  // and update its visual asset link to display the conqueror's logo symbol.
-  const targetMarkerId = countryMarkers[targetRegionId];
-  if (targetMarkerId && simplemaps_europemap_mapdata.locations[targetMarkerId]) {
-    const marker = simplemaps_europemap_mapdata.locations[targetMarkerId];
-    marker.image_url = flagUrl || "";
-    marker.name = `${targetState.name || targetRegionId}`;
-    marker.description = `Occupied territory of the ${attackerName} Empire`;
+      // 2. Locate and shift regional marker flags
+      const targetMarkerId = countryMarkers[id];
+      if (targetMarkerId && simplemaps_europemap_mapdata.locations[targetMarkerId]) {
+        const marker = simplemaps_europemap_mapdata.locations[targetMarkerId];
+        marker.image_url = flagUrl || "";
+        marker.name = `${states[id].name || id}`;
+        marker.description = `Occupied territory of the ${attackerName} Empire`;
+      }
+    }
   }
 
   // Synchronize canvas adjustments
   simplemaps_europemap.refresh();
   fixFlagSizesNative();
-  updateLog(`🎨 ${attackerName} has successfully conquered ${targetState.name || targetRegionId}!`);
+  updateLog(`🎨 Global Conquest: The ${attackerName} Empire has successfully integrated ${regionsConqueredCount} territories from the defeated regime!`);
 }
 
-// --- UPDATED SAFETY TIMELINE HISTORY SNAPSHOT PIPELINE ---
+// --- SAFETY TIMELINE HISTORY SNAPSHOT PIPELINE ---
 function saveHistorySnapshot() {
   if (typeof simplemaps_europemap_mapdata === "undefined") return;
   const states = simplemaps_europemap_mapdata.state_specific;
   const locations = simplemaps_europemap_mapdata.locations;
   
-  // Safe Map Default Fallbacks (Adjust these hex codes to your map's base theme if needed)
   const defaultMapColor = simplemaps_europemap_mapdata.main_settings.state_color || "#7f7f7f";
   const defaultHoverColor = simplemaps_europemap_mapdata.main_settings.state_hover_color || "#999999";
 
@@ -357,11 +490,9 @@ function saveHistorySnapshot() {
 function executeUndo() {
   if (historyStack.length === 0) return;
 
-  // 1. Capture current layout frame state and push it into the redo stack
   const currentStateSnapshot = currentHistorySnapshotObject();
   redoStack.push(currentStateSnapshot);
 
-  // 2. Pop the prior timeline map state record out of the history stack
   const previousState = historyStack.pop();
   applyHistorySnapshot(previousState);
   
@@ -372,11 +503,9 @@ function executeUndo() {
 function executeRedo() {
   if (redoStack.length === 0) return;
 
-  // 1. Save where we are right now back into standard history stack
   const currentStateSnapshot = currentHistorySnapshotObject();
   historyStack.push(currentStateSnapshot);
 
-  // 2. Restore the forward timeline frame index out of the redo stack
   const nextState = redoStack.pop();
   applyHistorySnapshot(nextState);
 
@@ -454,6 +583,7 @@ function countTerritoriesOwnedBy(ownerId) {
   return count || 1;
 }
 
+// Resets paintbrush tool settings safely
 function resetSandboxBrush() {
   gameState.selectedCountry = null;
   gameState.currentBrushColor = null;
@@ -476,8 +606,12 @@ function resetSandboxBrush() {
 function clearBattleQueue() {
   gameState.attackerId = null;
   gameState.defenderId = null;
-  document.getElementById("attacker-display").innerText = "Select on map...";
-  document.getElementById("defender-display").innerText = "Select target on map...";
+  
+  const attInput = document.getElementById("attacker-search");
+  const defInput = document.getElementById("defender-search");
+  if (attInput) attInput.value = "";
+  if (defInput) defInput.value = "";
+
   const simBtn = document.getElementById("btn-simulate");
   if (simBtn) simBtn.disabled = true;
   const resCard = document.getElementById("battle-result");
@@ -493,6 +627,7 @@ function fixFlagSizesNative() {
   });
 }
 
+// Global logger handler
 function updateLog(text) {
   const ticker = document.getElementById("log-ticker");
   if (ticker) ticker.innerText = text;

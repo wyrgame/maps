@@ -35,17 +35,23 @@
                 
                 <div class="team-select-box">
                     <span class="badge attacker">Attacker</span>
-                    <div id="attacker-display" class="team-display">Select on map or list...</div>
+                    <div class="search-wrapper" style="position: relative; margin-top: 5px;">
+                        <input type="text" id="attacker-search" class="battle-search-input" placeholder="Type team or click map..." autocomplete="off">
+                        <div id="attacker-dropdown" class="search-dropdown hidden"></div>
+                    </div>
                 </div>
 
                 <div class="vs-divider">VS</div>
 
                 <div class="team-select-box">
                     <span class="badge defender">Defender</span>
-                    <div id="defender-display" class="team-display">Select target on map...</div>
+                    <div class="search-wrapper" style="position: relative; margin-top: 5px;">
+                        <input type="text" id="defender-search" class="battle-search-input" placeholder="Type country or click map..." autocomplete="off">
+                        <div id="defender-dropdown" class="search-dropdown hidden"></div>
+                    </div>
                 </div>
 
-                <button id="btn-simulate" class="btn-primary" disabled>⚡ Commencing Battle</button>
+                <button id="btn-simulate" class="btn-primary" disabled>⚡ Click to Battle</button>
                 
                 <div id="battle-result" class="result-card hidden"></div>
             </div>
@@ -60,10 +66,10 @@
 
         <main class="main-content">
             <div class="map-viewport">
-                    <div class="history-controls">
-                        <button id="btn-undo" class="btn-ctrl" disabled title="Undo last action">↩️ Undo</button>
-                        <button id="btn-redo" class="btn-ctrl" disabled title="Redo last action">↪️ Redo</button>
-                    </div>
+                <div class="history-controls">
+                    <button id="btn-undo" class="btn-ctrl" disabled title="Undo last action">↩️ Undo</button>
+                    <button id="btn-redo" class="btn-ctrl" disabled title="Redo last action">↪️ Redo</button>
+                </div>
 
                 <div id="map"></div>
             </div>
