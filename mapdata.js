@@ -208,18 +208,18 @@ var simplemaps_europemap_mapdata={
     "0": {
       lat: "40.416",
       lng: "-3.703",
-      name: "Madrid",
+      name: "Spain",
       color: "green",
-      description: "Real Madrid",
+      description: "Spain",
       size: "40",
       image_url: "Flags/flag-of-Spain.png"
     },
     "1": {
       lat: "46.857",
       lng: "2.351",
-      name: "Paris",
+      name: "France",
       color: "green",
-      description: "PSG",
+      description: "France",
       size: "20",
       image_url: "Flags/flag-of-France.png"
     }
