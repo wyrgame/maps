@@ -34,6 +34,14 @@ const countryMarkers = {
   FR: "1" 
 };
 
+// --- DYNAMIC WAR CORRESPONDENCE DICTIONARY ---
+const imperialLogPhrases = [
+  "has completely annexed the territories of {defender}, expanding their empire!",
+  "marched into {defender} territory and painted it completely!",
+  "has crushed the sovereign forces of {defender} and seized control of their lands.",
+  "absorbed the entire sphere of influence belonging to {defender}!"
+];
+
 // Initialize Ownership Matrix on start and completely synchronize default hovers
 function initOwnershipMatrix() {
   if (typeof simplemaps_europemap_mapdata === "undefined") return;
@@ -42,6 +50,10 @@ function initOwnershipMatrix() {
   
   // 1. Normalize and clean up land mass region hovers
   for (let id in states) {
+    if (!states[id].name_original) {
+      // Freeze and back up the pristine native country name at launch
+      states[id].name_original = states[id].name || id;
+    }
     if (!states[id].owner) {
       // At the start of the simulation, every land mass is owned by its original native team
       states[id].owner = id; 
@@ -63,6 +75,9 @@ function initOwnershipMatrix() {
       locations[markerId].description = states[landId].description;
     }
   }
+
+  // 3. Sync the global counter at boot sequence
+  updateActiveEmpiresCount();
 }
 
 function initGame() {
@@ -156,12 +171,14 @@ function initGame() {
         
         if (statusBox) {
           statusBox.className = "status-active";
-          statusBox.innerText = `Active Brush: ${ownerHomeState?.name || currentOwnerId}`;
+          const displayBrushName = ownerHomeState ? (ownerHomeState.name_original || ownerHomeState.name) : currentOwnerId;
+          statusBox.innerText = `Active Brush: ${displayBrushName}`;
           statusBox.style.color = gameState.currentBrushColor;
         }
         
         if (clearBtn) clearBtn.classList.remove("hidden");
-        updateLog(`Loaded Paintbrush Tool: ${ownerHomeState?.name || currentOwnerId} (Shift-click land to switch attacker)`);
+        const logBrushName = ownerHomeState ? (ownerHomeState.name_original || ownerHomeState.name) : currentOwnerId;
+        updateLog(`Loaded Paintbrush Tool: ${logBrushName} (Shift-click land to switch attacker)`);
         return;
       }
 
@@ -173,8 +190,14 @@ function initGame() {
       }
 
       // CASE 3: Standard Left Click with an Active Brush -> CONQUER TARGET!
+      // Update dynamic FIFA Imperialism logs before state configuration values change
+      updateImperialLog(gameState.selectedCountry, currentOwnerId);
+      
       // Convert all regions belonging to the target regime over to your brush properties
       paintEmpire(currentOwnerId, gameState.currentBrushColor, gameState.currentBrushHoverColor, gameState.currentBrushFlag, gameState.selectedCountry);
+      
+      // Refresh the remaining overlords ticker
+      updateActiveEmpiresCount();
     }
 
     // --- MODE 2: STRUCTURAL WAR SELECTION (AUTO-SYNC SEARCH FIELDS) ---
@@ -196,7 +219,10 @@ function initGame() {
       // Dynamic naming logic: Check total land count to decide if they are an Empire yet
       const territoryCount = countTerritoriesOwnedBy(currentOwnerId);
       const suffix = territoryCount > 1 ? " Empire" : "";
-      const formattedName = `${ownerHomeState.name || currentOwnerId}${suffix}`;
+      
+      // Use the pristine underlying base name to avoid cumulative text growth issues
+      const baseEmpireName = ownerHomeState.name_original || ownerHomeState.name || currentOwnerId;
+      const formattedName = `${baseEmpireName}${suffix}`;
 
       if (!shouldAssignAsDefender) {
         // ASSIGN ATTACKER
@@ -212,7 +238,11 @@ function initGame() {
         gameState.defenderId = id; 
         
         if (defInput) {
-          defInput.value = formattedName;
+          // Contextual clarification for the input box text frame when targets are selected
+          const originalTargetLandName = state.name_original || state.name || id;
+          const targetDisplayLabel = currentOwnerId !== id ? `${originalTargetLandName} (${formattedName})` : formattedName;
+          
+          defInput.value = targetDisplayLabel;
           defInput.blur(); // Stripping focus prevents map clicks from overwriting selection
         }
 
@@ -221,7 +251,8 @@ function initGame() {
           resultCard.classList.add("hidden");
         }
 
-        updateLog(`Target territory confirmed: ${state.name || id} (Part of ${formattedName}).`);
+        const targetLogName = state.name_original || state.name || id;
+        updateLog(`Target territory confirmed: ${targetLogName} (Part of ${formattedName}).`);
       }
 
       // Dynamic Validation Pass: Instantly evaluate activation rules regardless of choice order!
@@ -249,8 +280,11 @@ function runBattleSimulation() {
 
   const defId = defState.owner || defRegionId; // True defending Empire master owning that land
   
-  const attackerName = simplemaps_europemap_mapdata.state_specific[attId]?.name || attId;
-  const defenderName = simplemaps_europemap_mapdata.state_specific[defId]?.name || defId;
+  const attackerHome = simplemaps_europemap_mapdata.state_specific[attId];
+  const defenderHome = simplemaps_europemap_mapdata.state_specific[defId];
+
+  const attackerName = (attackerHome?.name_original || attackerHome?.name || attId);
+  const defenderName = (defenderHome?.name_original || defenderHome?.name || defId);
   
   // Civil War Prevention Guard Clause
   if (attId === defId) {
@@ -301,11 +335,17 @@ function runBattleSimulation() {
           resultCard.innerHTML = `<strong>VICTORY: ${attackerName} Wins!</strong><br>The entire ${defenderName} regime has capitulated and collapsed!`;
         }
         
+        // Log the imperial takeover event using true Ruling Overlords
+        updateImperialLog(attId, defId);
+
         // Execute structural map transfer using the Attacking Empire's original base color properties
         const attState = simplemaps_europemap_mapdata.state_specific[attId];
         
         // Convert all regions belonging to the defId empire to the attacker's empire details
         paintEmpire(defId, attState.color, (attState.hover_color || attState.color), countryFlags[attId], attId);
+        
+        // Recalculate unique surviving independent overlords list
+        updateActiveEmpiresCount();
       } else {
         if (resultCard) {
           resultCard.className = "result-card";
@@ -314,12 +354,62 @@ function runBattleSimulation() {
           resultCard.style.color = "#f87171";
           resultCard.innerHTML = `<strong>DEFEAT: ${defenderName} Repelled the Attack!</strong><br>Borders remain unchanged.`;
         }
+        updateLog(`Battle complete. ${attackerName} forces were repelled.`);
       }
-      
-      updateLog(`Battle complete. Outcome resolved.`);
     }
   }, 375);
 }
+
+// --- NEW STRUCTURAL METRICS UPDATERS FOR THE SIDEBAR FOOTER ---
+
+function updateImperialLog(attackerEmpireId, defenderEmpireId) {
+  const logTicker = document.getElementById("log-ticker");
+  if (!logTicker) return;
+
+  const states = simplemaps_europemap_mapdata.state_specific;
+  
+  // Trace back who actually rules both sides of this conflict right now
+  const attackerMasterId = states[attackerEmpireId]?.owner || attackerEmpireId;
+  const defenderMasterId = states[defenderEmpireId]?.owner || defenderEmpireId;
+
+  // Safeguard: Don't write log data if a country clicks or expands into its own colony
+  if (attackerMasterId === defenderMasterId) return;
+
+  const attackerName = states[attackerMasterId]?.name_original || states[attackerMasterId]?.name || attackerMasterId;
+  const defenderName = states[defenderMasterId]?.name_original || states[defenderMasterId]?.name || defenderMasterId;
+
+  // Pick a random styled flavor sentence frame
+  const randomPhrase = imperialLogPhrases[Math.floor(Math.random() * imperialLogPhrases.length)];
+  const framedText = randomPhrase.replace("{defender}", `<strong>${defenderName} Empire</strong>`);
+
+  logTicker.innerHTML = `<strong>${attackerName} Empire</strong> ${framedText}`;
+}
+
+function updateActiveEmpiresCount() {
+  const statsSummary = document.getElementById("stat-active-empires");
+  if (!statsSummary) return;
+
+  if (typeof simplemaps_europemap_mapdata === "undefined") return;
+  const states = simplemaps_europemap_mapdata.state_specific;
+
+  // Set collection will only allow absolute unique master names to populate
+  const survivingOverlords = new Set();
+
+  for (let id in states) {
+    // Check who is labeled as the master owner code of the node
+    const currentOwnerId = states[id].owner || id;
+    
+    // Get the name of that ruling master country
+    const masterName = states[currentOwnerId]?.name_original || states[currentOwnerId]?.name || currentOwnerId;
+    if (masterName) {
+      survivingOverlords.add(masterName);
+    }
+  }
+
+  // Set element content nodes to show exact active sovereign empires size
+  statsSummary.textContent = survivingOverlords.size;
+}
+
 
 // Dom Event Initialization
 function setupDomEventListeners() {
@@ -382,11 +472,19 @@ function setupDomEventListeners() {
         const states = simplemaps_europemap_mapdata.state_specific;
         let matches = [];
 
+        // Formats lists dynamically to display "Germany (France Empire)" if captured
         for (let id in states) {
-          const name = (states[id].name || id).toLowerCase();
-          // Uses .startsWith() to reject middle matching letters
-          if (name.startsWith(query)) {
-            matches.push({ id: id, name: states[id].name || id });
+          const originalName = states[id].name_original || states[id].name || id;
+          const currentOwnerId = states[id].owner || id;
+          const ownerHomeState = states[currentOwnerId];
+          
+          const currentRulerName = ownerHomeState ? (ownerHomeState.name_original || ownerHomeState.name) : currentOwnerId;
+          const isConquered = currentOwnerId !== id;
+
+          const displayName = isConquered ? `${originalName} (${currentRulerName} Empire)` : originalName;
+
+          if (displayName.toLowerCase().includes(query)) {
+            matches.push({ id: id, name: displayName });
           }
         }
 
@@ -451,27 +549,30 @@ function paintEmpire(targetEmpireMasterId, color, hoverColor, flagUrl, attackerE
 
   // Determine standard baseline naming conventions depending on total size of attacker empire
   const attackerHomeState = states[attackerEmpireId];
-  const attackerBaseName = attackerHomeState?.name || attackerEmpireId;
+  const attackerBaseName = attackerHomeState?.name_original || attackerHomeState?.name || attackerEmpireId;
   
   // Clean layout label (e.g., "France Empire")
   const newEmpireLabelName = attackerBaseName.endsWith("Empire") ? attackerBaseName : `${attackerBaseName} Empire`;
-  let regionsConqueredCount = 0;
 
   // Loop through all regions on the map. If a territory is owned by the target empire, shift it to the attacker.
   for (let id in states) {
     const currentOwnerOfRegion = states[id].owner || id;
     
     if (currentOwnerOfRegion === targetEmpireMasterId) {
-      regionsConqueredCount++;
       
+      // Safety freeze original name string if not configured yet
+      if (!states[id].name_original) {
+        states[id].name_original = states[id].name || id;
+      }
+
       // 1. Shift land tracking color and structural parameters
       states[id].color = color;
       states[id].hover_color = hoverColor;
       states[id].owner = attackerEmpireId;
 
-      // Synchronize BOTH properties of the land shape tooltip text
+      // TOOLTIP REDESIGN: Title becomes "France Empire", description line underneath becomes "Formerly Germany"
       states[id].name = newEmpireLabelName;
-      states[id].description = `Occupied territory of the ${newEmpireLabelName}`;
+      states[id].description = `(Formerly ${states[id].name_original})`;
 
       // 2. Locate and shift regional marker flags
       const targetMarkerId = countryMarkers[id];
@@ -479,9 +580,9 @@ function paintEmpire(targetEmpireMasterId, color, hoverColor, flagUrl, attackerE
         const marker = simplemaps_europemap_mapdata.locations[targetMarkerId];
         marker.image_url = flagUrl || "";
         
-        // Synchronize BOTH properties of the flag marker tooltip text to exactly match the land shape
+        // Synchronize marker flag tooltips to match land shapes exactly
         marker.name = newEmpireLabelName;
-        marker.description = `Occupied territory of the ${newEmpireLabelName}`;
+        marker.description = `(Formerly ${states[id].name_original})`;
       }
     }
   }
@@ -489,7 +590,6 @@ function paintEmpire(targetEmpireMasterId, color, hoverColor, flagUrl, attackerE
   // Synchronize canvas adjustments
   simplemaps_europemap.refresh();
   fixFlagSizesNative();
-  updateLog(`🎨 Global Conquest: The ${newEmpireLabelName} has successfully integrated ${regionsConqueredCount} territories from the defeated regime!`);
 }
 
 // --- SAFETY TIMELINE HISTORY SNAPSHOT PIPELINE ---
@@ -510,6 +610,7 @@ function saveHistorySnapshot() {
       hover_color: states[id].hover_color || defaultHoverColor,
       owner: states[id].owner || id,
       name: states[id].name || "",
+      name_original: states[id].name_original || states[id].name || id,
       description: states[id].description || "" // Back up descriptions
     };
   }
@@ -543,6 +644,7 @@ function executeUndo() {
   applyHistorySnapshot(previousState);
   
   updateHistoryButtonsUI();
+  updateActiveEmpiresCount(); // Recalculate metrics backwards on historical timeline shift
   updateLog("↩️ Undo executed: Restored previous map timeline.");
 }
 
@@ -556,6 +658,7 @@ function executeRedo() {
   applyHistorySnapshot(nextState);
 
   updateHistoryButtonsUI();
+  updateActiveEmpiresCount(); // Recalculate metrics forwards on historical timeline shift
   updateLog("↪️ Redo executed: Forwarded map state timeline.");
 }
 
@@ -573,6 +676,7 @@ function currentHistorySnapshotObject() {
       hover_color: states[id].hover_color || defaultHoverColor, 
       owner: states[id].owner || id,
       name: states[id].name || "",
+      name_original: states[id].name_original || states[id].name || id,
       description: states[id].description || ""
     };
   }
@@ -600,6 +704,7 @@ function applyHistorySnapshot(snapshot) {
       states[id].hover_color = snapshot.states[id].hover_color;
       states[id].owner = snapshot.states[id].owner;
       states[id].name = snapshot.states[id].name;
+      states[id].name_original = snapshot.states[id].name_original;
       states[id].description = snapshot.states[id].description; // Restore description fields backward
     }
   }
