@@ -274,3 +274,46 @@ body {
 .hidden {
     display: none !important;
 }
+
+/* Sidebar Layout adjustments to support flexible layout pinning */
+.sidebar {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100ab; /* Ensures it stretches to match screen canvas boundaries */
+    box-sizing: border-box;
+}
+
+.sidebar-main-content {
+    flex-grow: 1;
+    overflow-y: auto; /* Adds a scrollbar only if display menus stack up past screen height */
+}
+
+/* Custom styling structure for your new integrated metrics hub */
+.sidebar-footer {
+    margin-top: auto;
+    border-top: 1px solid #1e293b; /* Clean horizontal line separator */
+    padding-top: 15px;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+.sidebar-footer .ticker-box {
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+#log-ticker {
+    color: #3b82f6; /* Accent color to draw eye to outcome ticker messages */
+    word-wrap: break-word;
+}
+
+.sidebar-footer .stats-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #0f172a;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-top: 10px;
+}

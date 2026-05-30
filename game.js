@@ -75,7 +75,8 @@ function initGame() {
     
     // Refresh the map explicitly so internal engine hooks capture the modified sovereign strings
     simplemaps_europemap.refresh();
-    
+  
+
     // --- WIRE UP CUSTOM GOOGLE-MAPS STYLE ZOOM CONTROLS ---
     const zoomInBtn = document.getElementById("custom-zoom-in");
     const zoomOutBtn = document.getElementById("custom-zoom-out");

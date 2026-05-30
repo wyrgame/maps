@@ -14,53 +14,65 @@
     <div class="app-container">
         
         <aside class="sidebar">
-            <div class="panel-header">
-                <h2>⚔️ Empire Simulator</h2>
-                <p>Select territories or simulate automated conquests.</p>
-            </div>
+            <div class="sidebar-main-content">
+                <div class="panel-header">
+                    <h2>⚔️ Empire Simulator</h2>
+                    <p>Select territories or simulate automated conquests.</p>
+                </div>
 
-            <div class="control-group">
-                <label>Interaction Mode</label>
-                <div class="radio-toggle">
-                    <input type="radio" id="mode-sandbox" name="game-mode" value="sandbox" checked>
-                    <label for="mode-sandbox">Manual Sandbox</label>
+                <div class="control-group">
+                    <label>Interaction Mode</label>
+                    <div class="radio-toggle">
+                        <input type="radio" id="mode-sandbox" name="game-mode" value="sandbox" checked>
+                        <label for="mode-sandbox">Manual Sandbox</label>
+                        
+                        <input type="radio" id="mode-battle" name="game-mode" value="battle">
+                        <label for="mode-battle">Battle Sim</label>
+                    </div>
+                </div>
+
+                <div id="battle-interface" class="control-group hidden">
+                    <h3>Simulate War</h3>
                     
-                    <input type="radio" id="mode-battle" name="game-mode" value="battle">
-                    <label for="mode-battle">Battle Sim</label>
+                    <div class="team-select-box">
+                        <span class="badge attacker">Attacker</span>
+                        <div class="search-wrapper" style="position: relative; margin-top: 5px;">
+                            <input type="text" id="attacker-search" class="battle-search-input" placeholder="Type team or click map..." autocomplete="off">
+                            <div id="attacker-dropdown" class="search-dropdown hidden"></div>
+                        </div>
+                    </div>
+
+                    <div class="vs-divider">VS</div>
+
+                    <div class="team-select-box">
+                        <span class="badge defender">Defender</span>
+                        <div class="search-wrapper" style="position: relative; margin-top: 5px;">
+                            <input type="text" id="defender-search" class="battle-search-input" placeholder="Type country or click map..." autocomplete="off">
+                            <div id="defender-dropdown" class="search-dropdown hidden"></div>
+                        </div>
+                    </div>
+
+                    <button id="btn-simulate" class="btn-primary" disabled>⚡ Click to Battle</button>
+                    
+                    <div id="battle-result" class="result-card hidden"></div>
+                </div>
+
+                <div id="sandbox-interface" class="control-group">
+                    <h3>Paint Brush Active</h3>
+                    <p class="instruction">Click a country (or its flag) to load the brush, then click another country to expand its borders.</p>
+                    <div id="brush-status" class="status-empty">No country selected</div>
+                    <button id="btn-clear-brush" class="btn-secondary hidden" style="width: 100%; margin-top: 10px; padding: 6px; cursor: pointer;">❌ Clear Selection</button>
                 </div>
             </div>
 
-            <div id="battle-interface" class="control-group hidden">
-                <h3>Simulate War</h3>
-                
-                <div class="team-select-box">
-                    <span class="badge attacker">Attacker</span>
-                    <div class="search-wrapper" style="position: relative; margin-top: 5px;">
-                        <input type="text" id="attacker-search" class="battle-search-input" placeholder="Type team or click map..." autocomplete="off">
-                        <div id="attacker-dropdown" class="search-dropdown hidden"></div>
-                    </div>
+            <div class="sidebar-footer">
+                <div class="ticker-box">
+                    <strong>Global Log:</strong> 
+                    <div id="log-ticker">Simulation initialized. Ready for commands.</div>
                 </div>
-
-                <div class="vs-divider">VS</div>
-
-                <div class="team-select-box">
-                    <span class="badge defender">Defender</span>
-                    <div class="search-wrapper" style="position: relative; margin-top: 5px;">
-                        <input type="text" id="defender-search" class="battle-search-input" placeholder="Type country or click map..." autocomplete="off">
-                        <div id="defender-dropdown" class="search-dropdown hidden"></div>
-                    </div>
+                <div class="stats-summary">
+                    <span>Empires Engaged: <strong id="stat-active-empires">6</strong></span>
                 </div>
-
-                <button id="btn-simulate" class="btn-primary" disabled>⚡ Click to Battle</button>
-                
-                <div id="battle-result" class="result-card hidden"></div>
-            </div>
-
-            <div id="sandbox-interface" class="control-group">
-                <h3>Paint Brush Active</h3>
-                <p class="instruction">Click a country (or its flag) to load the brush, then click another country to expand its borders.</p>
-                <div id="brush-status" class="status-empty">No country selected</div>
-                <button id="btn-clear-brush" class="btn-secondary hidden" style="width: 100%; margin-top: 10px; padding: 6px; cursor: pointer;">❌ Clear Selection</button>
             </div>
         </aside>
 
@@ -73,15 +85,6 @@
 
                 <div id="map"></div>
             </div>
-
-            <footer class="status-bar">
-                <div class="ticker-box">
-                    <strong>Global Log:</strong> <span id="log-ticker">Simulation initialized. Ready for commands.</span>
-                </div>
-                <div class="stats-summary">
-                    <span>Empires Engaged: <strong id="stat-active-empires">6</strong></span>
-                </div>
-            </footer>
         </main>
 
     </div>
